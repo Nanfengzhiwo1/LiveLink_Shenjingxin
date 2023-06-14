@@ -1,0 +1,71 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.1",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "ShenJingXin",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "VRM4U",
+			"Enabled": true
+		},
+		{
+			"Name": "Bridge",
+			"Enabled": false,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
+		},
+		{
+			"Name": "LiveLink",
+			"Enabled": true
+		},
+		{
+			"Name": "GStreamer",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaPipe4U",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaPipe4UBVH",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaPipe4ULiveLink",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaPipe4UGStreamer",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaPipe4UNvAR",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaPipe4USpeech",
+			"Enabled": true
+		},
+		{
+			"Name": "LiveLinkControlRig",
+			"Enabled": true
+		}
+	]
+}
