@@ -1,0 +1,44 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "2022.0.1",
+	"FriendlyName": "MediaPipe GStreamer",
+	"Description": "MediaPipe GStreamer Image Source Provider",
+	"Category": "Other",
+	"CreatedBy": "AndersXiao",
+	"CreatedByURL": "https://github.com/endink",
+	"DocsURL": "https://github.com/endink/Mediapipe4u-plugin",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EngineVersion": "5.1.0",
+	"CanContainContent": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "MediaPipeGStreamer",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		},
+		{
+			"Name": "MediaPipeGStreamerEditor",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "GStreamer",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaPipe4U",
+			"Enabled": true
+		}
+	]
+}

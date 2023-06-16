@@ -1,0 +1,26 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "2022.0.1",
+	"FriendlyName": "GStreamer",
+	"Description": "GStreamer for Unreal Engine 5",
+	"Category": "Media",
+	"CreatedBy": "Anders Xiao",
+	"CreatedByURL": "https://github.com/endink",
+	"DocsURL": "https://github.com/endink/Mediapipe4u-plugin",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EngineVersion": "5.1.0",
+	"CanContainContent": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "GStreamer",
+			"Type": "Runtime",
+			"LoadingPhase": "PreDefault",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		}
+	]
+}

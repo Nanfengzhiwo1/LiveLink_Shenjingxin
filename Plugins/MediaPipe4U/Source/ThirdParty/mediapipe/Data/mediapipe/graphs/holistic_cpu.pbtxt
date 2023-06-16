@@ -1,0 +1,255 @@
+# Tracks and renders pose + hands + face landmarks.
+
+# CPU image. (ImageFrame)
+input_stream: "input_video"
+
+# CPU image with rendered results. (ImageFrame)
+output_stream: "output_video"
+
+# Throttles the images flowing downstream for flow control. It passes through
+# the very first incoming image unaltered, and waits for downstream nodes
+# (calculators and subgraphs) in the graph to finish their tasks before it
+# passes through another image. All images that come in while waiting are
+# dropped, limiting the number of in-flight images in most part of the graph to
+# 1. This prevents the downstream nodes from queuing up incoming images and data
+# excessively, which leads to increased latency and memory usage, unwanted in
+# real-time mobile applications. It also eliminates unnecessarily computation,
+# e.g., the output produced by a node may get dropped downstream if the
+# subsequent nodes are still busy processing previous inputs.
+node {
+  calculator: "FlowLimiterCalculator"
+  input_stream: "input_video"
+  input_stream: "FINISHED:output_video"
+  input_stream_info: {
+    tag_index: "FINISHED"
+    back_edge: true
+  }
+  output_stream: "throttled_input_video"
+  node_options: {
+    [type.googleapis.com/mediapipe.FlowLimiterCalculatorOptions] {
+      max_in_flight: 1
+      max_in_queue: 1
+      # Timeout is disabled (set to 0) as first frame processing can take more
+      # than 1 second.
+      in_flight_timeout: 0
+    }
+  }
+}
+
+node: {
+  calculator: "ImageTransformationCalculator"
+  input_stream: "IMAGE:throttled_input_video"
+  input_side_packet: "ROTATION_DEGREES:input_rotation"
+  input_side_packet: "FLIP_HORIZONTALLY:input_horizontally_flipped"
+  input_side_packet: "FLIP_VERTICALLY:input_vertically_flipped"
+  output_stream: "IMAGE:transformed_input_video"
+}
+
+
+
+node {
+  calculator: "HolisticLandmarkCpu"
+  input_stream: "IMAGE:transformed_input_video"
+  input_side_packet: "MODEL_COMPLEXITY:model_complexity"
+  input_side_packet: "SMOOTH_LANDMARKS:smooth_landmarks"
+  input_side_packet: "REFINE_FACE_LANDMARKS:refine_face_landmarks"
+  input_side_packet: "ENABLE_SEGMENTATION:enable_segmentation"
+  input_side_packet: "SMOOTH_SEGMENTATION:smooth_segmentation"
+  output_stream: "POSE_LANDMARKS:pose_landmarks"
+  output_stream: "WORLD_LANDMARKS:pose_world_landmarks"
+  output_stream: "SEGMENTATION_MASK:segmentation_mask_rotated"
+  output_stream: "POSE_ROI:pose_roi"
+  output_stream: "POSE_DETECTION:pose_detection"
+  output_stream: "FACE_LANDMARKS:face_landmarks"
+  output_stream: "LEFT_HAND_LANDMARKS:left_hand_landmarks"
+  output_stream: "RIGHT_HAND_LANDMARKS:right_hand_landmarks"
+}
+
+
+# Gets image size.
+node {
+  calculator: "ImagePropertiesCalculator"
+  input_stream: "IMAGE:transformed_input_video"
+  output_stream: "SIZE:image_size"
+}
+
+
+# IRIS
+
+# Gets two landmarks which define left eye boundary.
+node {
+  calculator: "SplitNormalizedLandmarkListCalculator"
+  input_stream: "face_landmarks"
+  output_stream: "left_eye_boundary_landmarks"
+  node_options: {
+    [type.googleapis.com/mediapipe.SplitVectorCalculatorOptions] {
+      ranges: { begin: 33 end: 34 }
+      ranges: { begin: 133 end: 134 }
+      combine_outputs: true
+    }
+  }
+}
+# Gets two landmarks which define right eye boundary.
+node {
+  calculator: "SplitNormalizedLandmarkListCalculator"
+  input_stream: "face_landmarks"
+  output_stream: "right_eye_boundary_landmarks"
+  node_options: {
+    [type.googleapis.com/mediapipe.SplitVectorCalculatorOptions] {
+      ranges: { begin: 362 end: 363 }
+      ranges: { begin: 263 end: 264 }
+      combine_outputs: true
+    }
+  }
+}
+# Detects iris landmarks, eye contour landmarks, and corresponding rect (ROI).
+node {
+  calculator: "IrisLandmarkLeftAndRightCpu"
+  input_stream: "IMAGE:transformed_input_video"
+  input_stream: "LEFT_EYE_BOUNDARY_LANDMARKS:left_eye_boundary_landmarks"
+  input_stream: "RIGHT_EYE_BOUNDARY_LANDMARKS:right_eye_boundary_landmarks"
+  output_stream: "LEFT_EYE_CONTOUR_LANDMARKS:left_eye_contour_landmarks"
+  output_stream: "LEFT_EYE_IRIS_LANDMARKS:left_iris_landmarks"
+  output_stream: "LEFT_EYE_ROI:left_eye_rect_from_landmarks"
+  output_stream: "RIGHT_EYE_CONTOUR_LANDMARKS:right_eye_contour_landmarks"
+  output_stream: "RIGHT_EYE_IRIS_LANDMARKS:right_iris_landmarks"
+  output_stream: "RIGHT_EYE_ROI:right_eye_rect_from_landmarks"
+}
+node {
+  calculator: "ConcatenateNormalizedLandmarkListCalculator"
+  input_stream: "left_eye_contour_landmarks"
+  input_stream: "right_eye_contour_landmarks"
+  output_stream: "refined_eye_landmarks"
+}
+node {
+  calculator: "UpdateFaceLandmarksCalculator"
+  input_stream: "NEW_EYE_LANDMARKS:refined_eye_landmarks"
+  input_stream: "FACE_LANDMARKS:face_landmarks"
+  output_stream: "UPDATED_FACE_LANDMARKS:refined_face_landmarks"
+}
+
+node {
+  calculator: "ConcatenateNormalizedLandmarkListCalculator"
+  input_stream: "refined_face_landmarks"
+  input_stream: "left_iris_landmarks"
+  input_stream: "right_iris_landmarks"
+  output_stream: "face_landmarks_with_iris"
+}
+
+#FaceGeometry
+ node {
+   calculator: "FaceGeometryEnvGeneratorCalculator"
+   output_side_packet: "ENVIRONMENT:environment"
+   node_options: {
+     [type.googleapis.com/mediapipe.FaceGeometryEnvGeneratorCalculatorOptions] {
+       environment: {
+         origin_point_location: TOP_LEFT_CORNER
+         perspective_camera: {
+           vertical_fov_degrees: 63.0
+           near: 1.0 # 1cm
+           far: 10000.0 # 100m
+         }
+       }
+     }
+   }
+ }
+ 
+ 
+ # Puts the single set of smoothed landmarks back into a collection to simplify
+ # passing the result into the `FaceGeometryFromLandmarks` subgraph.
+ node {
+   calculator: "ConcatenateNormalizedLandmarkListVectorCalculator"
+   input_stream: "face_landmarks"
+   output_stream: "multi_smoothed_face_landmarks"
+ }
+ # Computes face geometry from face landmarks for a single face.
+ node {
+   calculator: "FaceGeometryFromLandmarks"
+   input_stream: "MULTI_FACE_LANDMARKS:multi_smoothed_face_landmarks"
+   input_stream: "IMAGE_SIZE:image_size"
+   input_side_packet: "ENVIRONMENT:environment"
+   output_stream: "MULTI_FACE_GEOMETRY:multi_face_geometry"
+   options: {
+     [mediapipe.FaceGeometryPipelineCalculatorOptions.ext] {
+       metadata_path: "mediapipe/modules/face_geometry/data/geometry_pipeline_metadata_landmarks.binarypb"
+     }
+   }
+ }
+
+# Rendering
+
+# ----------------------------face-----------------------------
+# node {
+#   calculator: "ConstantSidePacketCalculator"
+#   output_side_packet: "PACKET:0:num_faces"
+#   node_options: {
+#     [type.googleapis.com/mediapipe.ConstantSidePacketCalculatorOptions]: {
+#       packet { int_value: 1 }
+#     }
+#   }
+# }
+# 
+# node {
+#   calculator: "FaceLandmarkFrontCpu"
+#   input_stream: "IMAGE:transformed_input_video"
+#   input_side_packet: "NUM_FACES:num_faces"
+#   output_stream: "LANDMARKS:multi_smoothed_face_landmarks"
+#   output_stream: "ROIS_FROM_LANDMARKS:face_rects_from_landmarks"
+#   output_stream: "DETECTIONS:face_detections"
+#   output_stream: "ROIS_FROM_DETECTIONS:face_rects_from_detections"
+# }
+# 
+# node {
+#   calculator: "IrisRendererCpu"
+#   input_stream: "IMAGE:input_video"
+#   input_stream: "FACE_LANDMARKS:face_landmarks"
+#   input_stream: "EYE_LANDMARKS_LEFT:left_eye_boundary_landmarks"
+#   input_stream: "EYE_LANDMARKS_RIGHT:right_eye_boundary_landmarks"
+#   input_stream: "IRIS_LANDMARKS_LEFT:left_iris_landmarks"
+#   input_stream: "IRIS_LANDMARKS_RIGHT:right_iris_landmarks"
+#   input_stream: "NORM_RECT:face_rect"
+#   input_stream: "LEFT_EYE_RECT:left_eye_rect_from_landmarks"
+#   input_stream: "RIGHT_EYE_RECT:right_eye_rect_from_landmarks"
+#   input_stream: "DETECTIONS:face_detections"
+#   output_stream: "IRIS_LANDMARKS:iris_landmarks"
+#   output_stream: "IMAGE:output_video"
+# }
+
+#------------------------Holistic--------------------------
+
+node {
+  calculator: "HolisticTrackingToRenderData"
+  input_stream: "IMAGE_SIZE:image_size"
+  input_stream: "POSE_LANDMARKS:pose_landmarks"
+  input_stream: "POSE_ROI:pose_roi"
+  input_stream: "LEFT_HAND_LANDMARKS:left_hand_landmarks"
+  input_stream: "RIGHT_HAND_LANDMARKS:right_hand_landmarks"
+  input_stream: "FACE_LANDMARKS:refined_face_landmarks"
+  output_stream: "RENDER_DATA_VECTOR:render_data_vector"
+}
+
+#Draws annotations and overlays them on top of the input images.
+node {
+  calculator: "AnnotationOverlayCalculator"
+  input_stream: "IMAGE:transformed_input_video"
+  input_stream: "VECTOR:render_data_vector"
+  output_stream: "IMAGE:output_video"
+}
+
+# ----------------------------pose-----------------------------
+# node {
+#   calculator: "PoseRendererCpu"
+#   input_stream: "IMAGE:transformed_input_video"
+#   input_stream: "LANDMARKS:pose_landmarks"
+#   input_stream: "SEGMENTATION_MASK:segmentation_mask_rotated"
+#   input_stream: "DETECTION:pose_detection"
+#   input_stream: "ROI:pose_roi"
+#   output_stream: "IMAGE:output_video"
+# }
+
+
+
+
+
+
+
