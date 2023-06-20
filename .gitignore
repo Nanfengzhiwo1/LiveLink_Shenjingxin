@@ -13,3 +13,11 @@ Saved
 *.xcodeproj
 *.xcworkspace
 
+GStreamer
+MediaPipe4U
+MediaPipe4UBVH
+MediaPipe4UGStreamer
+MediaPipe4ULiveLink
+MediaPipe4UNvAR
+MediaPipe4USpeech
+SPCRJointDynamics
